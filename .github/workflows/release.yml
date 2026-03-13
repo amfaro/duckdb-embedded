@@ -73,6 +73,9 @@ jobs:
       IS_PRERELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || 'false' }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Download workflow artifacts
         uses: actions/download-artifact@v4
         with:
