@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+# mise description="Build a custom shared libduckdb with bundled extensions"
+#
+# Clones duckdb/duckdb and out-of-tree extensions at their pinned versions,
+# configures with our extension_config.cmake, and builds the shared library.
+#
+# The output lands in build/release/ and is referenced by:
+#   - DUCKDB_LIB_DIR (duckdb-rs in downstream crates)
+#   - DYLD_LIBRARY_PATH / LD_LIBRARY_PATH (runtime loader)
+#
+# Prerequisites (all managed by mise): cmake, ninja, rust toolchain.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+DUCKDB_VERSION="${DUCKDB_VERSION:-1.3.2}"
+BUILD_DIR="$PROJECT_ROOT/build/release"
+VENDOR_DIR="$PROJECT_ROOT/vendor"
+DUCKDB_SOURCE="$VENDOR_DIR/duckdb"
+
+case "$(uname -s):$(uname -m)" in
+  Darwin:arm64)
+    DUCKDB_PLATFORM="osx_arm64"
+    LIB_NAME="libduckdb.dylib"
+    ;;
+  Darwin:x86_64)
+    DUCKDB_PLATFORM="osx_amd64"
+    LIB_NAME="libduckdb.dylib"
+    ;;
+  Linux:x86_64)
+    DUCKDB_PLATFORM="linux_amd64"
+    LIB_NAME="libduckdb.so"
+    ;;
+  Linux:aarch64)
+    DUCKDB_PLATFORM="linux_arm64"
+    LIB_NAME="libduckdb.so"
+    ;;
+  *)
+    echo "ERROR: unsupported platform $(uname -s):$(uname -m)"
+    exit 1
+    ;;
+esac
+
+# evalexpr_rhai: pinned to commit compatible with DuckDB v1.3.x
+EVALEXPR_RHAI_REPO="https://github.com/Query-farm/evalexpr_rhai"
+EVALEXPR_RHAI_TAG="06bd6b9d74610fda430410686acebd6c2fcdab45"
+EVALEXPR_RHAI_SOURCE="$VENDOR_DIR/evalexpr_rhai"
+
+echo "==> duckdb-embedded: building ${LIB_NAME} v${DUCKDB_VERSION} with bundled extensions"
+echo "==> DuckDB platform: ${DUCKDB_PLATFORM}"
+
+# --- Clone / update DuckDB source ---
+if [ ! -d "$DUCKDB_SOURCE/.git" ]; then
+  echo "==> Cloning duckdb/duckdb v${DUCKDB_VERSION}..."
+  git clone \
+    --depth 1 \
+    --branch "v${DUCKDB_VERSION}" \
+    https://github.com/duckdb/duckdb.git \
+    "$DUCKDB_SOURCE"
+else
+  echo "==> DuckDB source already present at $DUCKDB_SOURCE, skipping clone."
+fi
+
+# --- Clone / update evalexpr_rhai ---
+# The extension's CMakeLists.txt references:
+#   ${CMAKE_SOURCE_DIR}/../duckdb_evalexpr_rhai_rust/Cargo.toml
+# where CMAKE_SOURCE_DIR is the DuckDB root (vendor/duckdb).
+# So we need vendor/duckdb_evalexpr_rhai_rust/ to exist.
+# We clone the extension into vendor/evalexpr_rhai/ and symlink its Rust crate.
+if [ ! -d "$EVALEXPR_RHAI_SOURCE/.git" ]; then
+  echo "==> Cloning Query-farm/evalexpr_rhai @ ${EVALEXPR_RHAI_TAG:0:7}..."
+  git clone \
+    --recurse-submodules \
+    "$EVALEXPR_RHAI_REPO" \
+    "$EVALEXPR_RHAI_SOURCE"
+  git -C "$EVALEXPR_RHAI_SOURCE" checkout "$EVALEXPR_RHAI_TAG"
+  git -C "$EVALEXPR_RHAI_SOURCE" submodule update --init --recursive
+else
+  echo "==> evalexpr_rhai source already present at $EVALEXPR_RHAI_SOURCE, skipping clone."
+fi
+
+# The extension's CMake expects the Rust crate as a sibling of the DuckDB source:
+#   vendor/duckdb_evalexpr_rhai_rust/ -> evalexpr_rhai/duckdb_evalexpr_rhai_rust/
+RUST_CRATE_LINK="$VENDOR_DIR/duckdb_evalexpr_rhai_rust"
+if [ ! -e "$RUST_CRATE_LINK" ]; then
+  echo "==> Creating symlink: vendor/duckdb_evalexpr_rhai_rust -> evalexpr_rhai/duckdb_evalexpr_rhai_rust"
+  ln -s "$EVALEXPR_RHAI_SOURCE/duckdb_evalexpr_rhai_rust" "$RUST_CRATE_LINK"
+else
+  echo "==> Symlink vendor/duckdb_evalexpr_rhai_rust already exists, skipping."
+fi
+
+# --- Configure ---
+echo "==> Configuring CMake..."
+cmake -S "$DUCKDB_SOURCE" -B "$BUILD_DIR" \
+  -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_UNITTESTS=OFF \
+  -DBUILD_SHELL=OFF \
+  -DDUCKDB_EXTENSION_CONFIGS="$PROJECT_ROOT/extension_config.cmake" \
+  -DDUCKDB_EXPLICIT_PLATFORM="$DUCKDB_PLATFORM"
+
+# --- Build ---
+echo "==> Building ${LIB_NAME}..."
+cmake --build "$BUILD_DIR" --target duckdb --parallel
+
+echo ""
+echo "==> Done. Library output:"
+ls -lh "$BUILD_DIR/src/$LIB_NAME"
+echo ""
+echo "==> Set these env vars in the consumer project:"
+echo "    DUCKDB_LIB_DIR=$BUILD_DIR/src"
+echo "    DUCKDB_INCLUDE_DIR=$PROJECT_ROOT/vendor/duckdb/src/include"
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  echo "    DYLD_LIBRARY_PATH=$BUILD_DIR/src"
+else
+  echo "    LD_LIBRARY_PATH=$BUILD_DIR/src"
+fi
