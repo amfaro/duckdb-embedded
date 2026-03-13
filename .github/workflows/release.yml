@@ -5,6 +5,16 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag to create or update for this release"
+        required: true
+        default: "v0.0.0-test"
+      prerelease:
+        description: "Mark the release as a prerelease"
+        required: true
+        default: true
+        type: boolean
 
 jobs:
   build-artifacts:
@@ -52,11 +62,15 @@ jobs:
           if-no-files-found: error
 
   publish-release:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
     runs-on: blacksmith-2vcpu-ubuntu-2404
     needs: build-artifacts
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+      RELEASE_TARGET: ${{ github.sha }}
+      IS_PRERELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || 'false' }}
 
     steps:
       - name: Download workflow artifacts
@@ -68,6 +82,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 || \
-            gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes ""
-          gh release upload "${GITHUB_REF_NAME}" dist/*/*.zip --clobber
+          release_args=(
+            "$RELEASE_TAG"
+            --target "$RELEASE_TARGET"
+            --title "$RELEASE_TAG"
+            --notes ""
+          )
+
+          if [[ "$IS_PRERELEASE" == "true" ]]; then
+            release_args+=(--prerelease)
+          fi
+
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || \
+            gh release create "${release_args[@]}"
+          gh release upload "$RELEASE_TAG" dist/*/*.zip --clobber
