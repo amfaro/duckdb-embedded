@@ -1,0 +1,50 @@
+name: lint
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - ".github/actionlint.yml"
+      - ".mise/tasks/**"
+      - "mise.toml"
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  workflow-lint:
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install mise
+        uses: jdx/mise-action@v2
+        with:
+          install: true
+
+      - name: Install actionlint only
+        run: mise install actionlint
+
+      - name: Lint GitHub Actions workflows
+        run: actionlint -color
+
+  task-lint:
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install mise
+        uses: jdx/mise-action@v2
+        with:
+          install: true
+
+      - name: Install shellcheck only
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Lint build task
+        run: shellcheck .mise/tasks/build-duckdb

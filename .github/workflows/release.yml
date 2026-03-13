@@ -4,9 +4,7 @@ on:
   push:
     tags:
       - "v*"
-
-permissions:
-  contents: write
+  workflow_dispatch:
 
 jobs:
   build-artifacts:
@@ -17,7 +15,7 @@ jobs:
           - runner: macos-14
             asset_name: libduckdb-osx-arm64.zip
             lib_name: libduckdb.dylib
-          - runner: ubuntu-latest
+          - runner: blacksmith-4vcpu-ubuntu-2404
             asset_name: libduckdb-linux-amd64.zip
             lib_name: libduckdb.so
 
@@ -54,7 +52,10 @@ jobs:
           if-no-files-found: error
 
   publish-release:
-    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    permissions:
+      contents: write
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     needs: build-artifacts
 
     steps:
