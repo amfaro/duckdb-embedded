@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Tag to create or update for this release"
+        description: "Tag to create (e.g., v1.3.2-1)"
         required: true
         default: "v0.0.0-test"
       prerelease:
@@ -17,7 +17,40 @@ on:
         type: boolean
 
 jobs:
+  validate-tag:
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    outputs:
+      release_tag: ${{ steps.parse.outputs.release_tag }}
+      duckdb_version: ${{ steps.parse.outputs.duckdb_version }}
+      build_number: ${{ steps.parse.outputs.build_number }}
+      is_prerelease: ${{ steps.parse.outputs.is_prerelease }}
+    steps:
+      - name: Parse and validate release tag
+        id: parse
+        run: |
+          TAG="${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}"
+          IS_PRERELEASE="${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || 'false' }}"
+
+          echo "release_tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=${IS_PRERELEASE}" >> "$GITHUB_OUTPUT"
+
+          # Release tags: v{MAJOR}.{MINOR}.{PATCH}-{BUILD} (e.g., v1.3.2-1)
+          # Prerelease/test tags are allowed to be freeform (e.g., v0.0.0-test)
+          if [[ "$IS_PRERELEASE" == "true" ]]; then
+            echo "Prerelease tag '${TAG}' — skipping strict format validation"
+            echo "duckdb_version=" >> "$GITHUB_OUTPUT"
+            echo "build_number=" >> "$GITHUB_OUTPUT"
+          elif [[ "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-([0-9]+)$ ]]; then
+            echo "duckdb_version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+            echo "build_number=${BASH_REMATCH[2]}" >> "$GITHUB_OUTPUT"
+            echo "Parsed: DuckDB ${BASH_REMATCH[1]}, build ${BASH_REMATCH[2]}"
+          else
+            echo "::error::Tag '${TAG}' does not match required format vX.Y.Z-N (e.g., v1.3.2-1)"
+            exit 1
+          fi
+
   build-artifacts:
+    needs: validate-tag
     strategy:
       fail-fast: false
       matrix:
@@ -66,11 +99,11 @@ jobs:
     permissions:
       contents: write
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    needs: build-artifacts
+    needs: [validate-tag, build-artifacts]
     env:
-      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+      RELEASE_TAG: ${{ needs.validate-tag.outputs.release_tag }}
       RELEASE_TARGET: ${{ github.sha }}
-      IS_PRERELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || 'false' }}
+      IS_PRERELEASE: ${{ needs.validate-tag.outputs.is_prerelease }}
 
     steps:
       - name: Checkout repository
@@ -99,3 +132,27 @@ jobs:
           gh release view "$RELEASE_TAG" >/dev/null 2>&1 || \
             gh release create "${release_args[@]}"
           gh release upload "$RELEASE_TAG" dist/*/*.zip --clobber
+
+  notify-consumers:
+    if: needs.validate-tag.outputs.duckdb_version != '' && needs.validate-tag.outputs.is_prerelease == 'false'
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    needs: [validate-tag, publish-release]
+    steps:
+      - name: Generate GitHub App Token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.DUCKDB_CLIENT_ID }}
+          private-key: ${{ secrets.DUCKDB_CLIENT_PRIVATE_KEY }}
+          owner: amfaro
+          repositories: calc
+
+      - name: Dispatch DuckDB upgrade to calc
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh api repos/amfaro/calc/dispatches \
+            --method POST \
+            --field event_type="duckdb-embedded-release" \
+            --field 'client_payload[duckdb_version]=${{ needs.validate-tag.outputs.duckdb_version }}' \
+            --field 'client_payload[embedded_version]=${{ needs.validate-tag.outputs.release_tag }}'
