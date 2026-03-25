@@ -14,10 +14,20 @@ jobs:
   tag-release:
     runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
+      - name: Generate GitHub App Token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.REPO_CLIENT_ID }}
+          private-key: ${{ secrets.REPO_CLIENT_PRIVATE_KEY }}
+          owner: amfaro
+          repositories: duckdb-embedded
+
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Setup mise
         uses: amfaro/actions/setup-mise@v1
