@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+#MISE description="Create and push the release tag from VERSION"
+#MISE hide=true
+
+set -euo pipefail
+
+release_version="$(tr -d '\n' < VERSION)"
+
+git fetch --tags origin
+
+if git rev-parse --verify --quiet "refs/tags/${release_version}" >/dev/null; then
+  echo "ERROR: tag ${release_version} already exists"
+  exit 1
+fi
+
+git tag "${release_version}" "${GITHUB_SHA}"
+git push origin "${release_version}"
