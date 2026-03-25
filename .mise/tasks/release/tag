@@ -4,6 +4,11 @@
 
 set -euo pipefail
 
+if [[ ! -f VERSION ]]; then
+  echo "VERSION is absent on this push; skipping tag creation"
+  exit 0
+fi
+
 release_version="$(tr -d '\n' < VERSION)"
 
 git fetch --tags origin
