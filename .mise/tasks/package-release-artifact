@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+#MISE description="Package a release artifact archive"
+#MISE hide=true
+#USAGE arg "<lib_name>"
+#USAGE arg "<asset_name>"
+
+set -euo pipefail
+
+LIB_NAME="${usage_lib_name}"
+ASSET_NAME="${usage_asset_name}"
+
+mkdir -p release
+cp "build/release/src/${LIB_NAME}" release/
+cp vendor/duckdb/src/include/duckdb.h release/
+cp vendor/duckdb/src/include/duckdb.hpp release/
+(cd release && zip -r "../${ASSET_NAME}" .)

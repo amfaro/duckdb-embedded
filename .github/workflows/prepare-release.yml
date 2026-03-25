@@ -1,0 +1,32 @@
+name: prepare-release
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - VERSION
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prepare-release:
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup mise
+        uses: amfaro/actions/setup-mise@v1
+        with:
+          app-id: ${{ secrets.REPO_CLIENT_ID }}
+          private-key: ${{ secrets.REPO_CLIENT_PRIVATE_KEY }}
+
+      - name: Prepare release pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: mise run release:prepare
