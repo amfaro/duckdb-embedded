@@ -1,4 +1,5 @@
 [tools]
+actionlint = "latest"
 cmake = "latest"
 ninja = "latest"
 
