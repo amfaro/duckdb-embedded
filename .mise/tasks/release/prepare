@@ -24,12 +24,17 @@ git config user.name "github-actions"
 git config user.email "github-actions@github.com"
 git checkout -B "${branch}" origin/main
 
-printf '%s\n' "${release_version}" > VERSION
+current_version=""
+if [[ -f VERSION ]]; then
+  current_version="$(tr -d '\n' < VERSION)"
+fi
 
-if git diff --quiet -- VERSION; then
+if [[ "${current_version}" == "${release_version}" ]]; then
   echo "VERSION already set to ${release_version}; nothing to do"
   exit 0
 fi
+
+printf '%s\n' "${release_version}" > VERSION
 
 git add VERSION
 git commit -m "chore(release): prepare ${release_version}"
