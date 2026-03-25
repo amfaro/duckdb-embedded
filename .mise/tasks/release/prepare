@@ -40,11 +40,10 @@ git add VERSION
 git commit -m "chore(release): prepare ${release_version}"
 git push --force-with-lease origin "${branch}"
 
-pr_body=$(cat <<EOF
-Prepare \
-`${release_version}`.
+pr_body=$(cat <<'EOF'
+Prepare `__RELEASE_VERSION__`.
 
-This PR updates `VERSION` to the next release tag inferred from `DUCKDB_VERSION` in `mise.toml` and the existing `v${duckdb_version}-*` tags.
+This PR updates `VERSION` to the next release tag inferred from `DUCKDB_VERSION` in `mise.toml` and the existing `v__DUCKDB_VERSION__-*` tags.
 
 After this PR merges:
 
@@ -52,6 +51,9 @@ After this PR merges:
 - `release.yml` runs on that tag push, publishes artifacts, and dispatches `duckdb-embedded-release` to `amfaro/calc`
 EOF
 )
+
+pr_body=${pr_body//__RELEASE_VERSION__/${release_version}}
+pr_body=${pr_body//__DUCKDB_VERSION__/${duckdb_version}}
 
 pr_number=$(gh pr list \
   --head "${branch}" \
