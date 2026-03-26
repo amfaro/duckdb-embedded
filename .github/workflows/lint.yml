@@ -47,4 +47,4 @@ jobs:
           sudo apt-get install -y shellcheck
 
       - name: Lint build task
-        run: shellcheck .mise/tasks/build-duckdb
+        run: shellcheck .mise/tasks/build-duckdb .mise/tasks/package-release-artifact .mise/tasks/prepare-runtime-image-context .mise/tasks/write-release-manifest

@@ -6,8 +6,8 @@
 
 set -euo pipefail
 
-LIB_NAME="${usage_lib_name}"
-ASSET_NAME="${usage_asset_name}"
+LIB_NAME="${1:?missing lib_name}"
+ASSET_NAME="${2:?missing asset_name}"
 
 mkdir -p release
 cp "build/release/src/${LIB_NAME}" release/
