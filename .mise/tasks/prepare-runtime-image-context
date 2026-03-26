@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+#MISE description="Prepare runtime image build context"
+#MISE hide=true
+#USAGE arg "<asset_path>"
+
+set -euo pipefail
+
+ASSET_PATH="${usage_asset_path}"
+CONTEXT_DIR="runtime-image"
+TMP_DIR="${CONTEXT_DIR}/tmp"
+
+rm -rf "${CONTEXT_DIR}"
+mkdir -p "${CONTEXT_DIR}/opt/amfaro/duckdb/lib" "${CONTEXT_DIR}/opt/amfaro/duckdb/include" "${TMP_DIR}"
+
+unzip -q "${ASSET_PATH}" -d "${TMP_DIR}"
+
+cp "${TMP_DIR}/libduckdb.so" "${CONTEXT_DIR}/opt/amfaro/duckdb/lib/"
+cp "${TMP_DIR}/duckdb.h" "${CONTEXT_DIR}/opt/amfaro/duckdb/include/"
+cp "${TMP_DIR}/duckdb.hpp" "${CONTEXT_DIR}/opt/amfaro/duckdb/include/"
+
+rm -rf "${TMP_DIR}"

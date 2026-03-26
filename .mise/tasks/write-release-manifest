@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+#MISE description="Write release manifest metadata"
+#MISE hide=true
+#USAGE arg "<release_tag>"
+#USAGE arg "<duckdb_version>"
+#USAGE arg "<runtime_image_ref>"
+#USAGE arg "<runtime_image_digest>"
+#USAGE arg "<linux_asset_path>"
+#USAGE arg "<osx_asset_path>"
+
+set -euo pipefail
+
+RELEASE_TAG="${usage_release_tag}"
+DUCKDB_VERSION="${usage_duckdb_version}"
+RUNTIME_IMAGE_REF="${usage_runtime_image_ref}"
+RUNTIME_IMAGE_DIGEST="${usage_runtime_image_digest}"
+LINUX_ASSET_PATH="${usage_linux_asset_path}"
+OSX_ASSET_PATH="${usage_osx_asset_path}"
+REPO="amfaro/duckdb-embedded"
+MANIFEST_PATH="release-manifest.json"
+
+linux_asset_name=$(basename "${LINUX_ASSET_PATH}")
+osx_asset_name=$(basename "${OSX_ASSET_PATH}")
+linux_sha256=$(shasum -a 256 "${LINUX_ASSET_PATH}" | cut -d ' ' -f 1)
+osx_sha256=$(shasum -a 256 "${OSX_ASSET_PATH}" | cut -d ' ' -f 1)
+
+cat > "${MANIFEST_PATH}" <<EOF
+{
+  "embedded_version": "${RELEASE_TAG}",
+  "duckdb_version": "${DUCKDB_VERSION}",
+  "release_url": "https://github.com/${REPO}/releases/tag/${RELEASE_TAG}",
+  "manifest_url": "https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${MANIFEST_PATH}",
+  "runtime_image": {
+    "reference": "${RUNTIME_IMAGE_REF}",
+    "digest": "${RUNTIME_IMAGE_DIGEST}",
+    "includes_headers": true
+  },
+  "artifacts": {
+    "linux-amd64": {
+      "name": "${linux_asset_name}",
+      "url": "https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${linux_asset_name}",
+      "sha256": "${linux_sha256}"
+    },
+    "osx-arm64": {
+      "name": "${osx_asset_name}",
+      "url": "https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${osx_asset_name}",
+      "sha256": "${osx_sha256}"
+    }
+  }
+}
+EOF
