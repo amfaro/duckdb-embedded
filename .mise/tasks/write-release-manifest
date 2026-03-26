@@ -10,12 +10,12 @@
 
 set -euo pipefail
 
-RELEASE_TAG="${usage_release_tag}"
-DUCKDB_VERSION="${usage_duckdb_version}"
-RUNTIME_IMAGE_REF="${usage_runtime_image_ref}"
-RUNTIME_IMAGE_DIGEST="${usage_runtime_image_digest}"
-LINUX_ASSET_PATH="${usage_linux_asset_path}"
-OSX_ASSET_PATH="${usage_osx_asset_path}"
+RELEASE_TAG="${1:?missing release_tag}"
+DUCKDB_VERSION="${2:?missing duckdb_version}"
+RUNTIME_IMAGE_REF="${3:?missing runtime_image_ref}"
+RUNTIME_IMAGE_DIGEST="${4:?missing runtime_image_digest}"
+LINUX_ASSET_PATH="${5:?missing linux_asset_path}"
+OSX_ASSET_PATH="${6:?missing osx_asset_path}"
 REPO="amfaro/duckdb-embedded"
 MANIFEST_PATH="release-manifest.json"
 

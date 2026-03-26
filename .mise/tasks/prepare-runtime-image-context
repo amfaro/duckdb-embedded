@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-ASSET_PATH="${usage_asset_path}"
+ASSET_PATH="${1:?missing asset_path}"
 CONTEXT_DIR="runtime-image"
 TMP_DIR="${CONTEXT_DIR}/tmp"
 
