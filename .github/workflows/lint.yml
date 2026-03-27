@@ -7,9 +7,6 @@ on:
       - ".github/actionlint.yml"
       - ".mise/tasks/**"
       - "mise.toml"
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 jobs:
