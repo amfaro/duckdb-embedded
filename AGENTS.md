@@ -4,6 +4,14 @@
 
 - Always use Conventional Commits for every commit in this repository.
 
+## Secrets
+
+- This is a public repository — Doppler sync is not available.
+- Workflows fetch secrets at runtime via `dopplerhq/secrets-fetch-action` using the `duckdb-embedded/prod` Doppler config.
+- `DOPPLER_TOKEN` (a service account API token) is the only GitHub-managed secret.
+- When adding a new secret that workflows need: add it to the `duckdb-embedded` Doppler project using reference syntax (e.g. `${shared.prod.SECRET_NAME}`), not as a duplicate value.
+- Never add secrets directly in the GitHub UI — they must originate from Doppler.
+
 ## Project shape
 
 - Keep the repository surface area minimal.
