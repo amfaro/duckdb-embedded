@@ -76,6 +76,22 @@ Releases are driven by pull requests and the `VERSION` file.
 - when a release PR is opened, `VERSION` contains the pending tag to create
 - `tag-release.yml` only uses `VERSION` on the `main` push produced by merging a release PR
 
+### Secrets management
+
+This is a public repository. Doppler cannot sync secrets directly to public
+repos, so workflows fetch credentials at runtime using
+[`dopplerhq/secrets-fetch-action`](https://github.com/DopplerHQ/secrets-fetch-action).
+
+| Component | Detail |
+|-----------|--------|
+| Doppler project | `duckdb-embedded` — secrets reference `shared/prod` via Doppler reference syntax |
+| Service account | `github-actions-ci` — viewer role, scoped to `duckdb-embedded/prod` |
+| GitHub secret | `DOPPLER_TOKEN` — the service account API token (only repo-level secret) |
+
+Workflows that need GitHub App tokens (`tag-release.yml`, `release.yml`) fetch
+`REPO_CLIENT_*` / `DUCKDB_CLIENT_*` from Doppler, then pass them to
+`actions/create-github-app-token`.
+
 ### Operational notes
 
 - the source of truth for the DuckDB version is `DUCKDB_VERSION` in `mise.toml`

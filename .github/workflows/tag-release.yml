@@ -14,12 +14,21 @@ jobs:
   tag-release:
     runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
+      - name: Fetch secrets from Doppler
+        id: doppler
+        uses: dopplerhq/secrets-fetch-action@v1
+        with:
+          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+          doppler-project: duckdb-embedded
+          doppler-config: prod
+          inject-env-vars: false
+
       - name: Generate GitHub App Token
         id: app-token
         uses: actions/create-github-app-token@v2
         with:
-          app-id: ${{ secrets.REPO_CLIENT_ID }}
-          private-key: ${{ secrets.REPO_CLIENT_PRIVATE_KEY }}
+          app-id: ${{ steps.doppler.outputs.REPO_CLIENT_ID }}
+          private-key: ${{ steps.doppler.outputs.REPO_CLIENT_PRIVATE_KEY }}
           owner: amfaro
           repositories: duckdb-embedded
 
