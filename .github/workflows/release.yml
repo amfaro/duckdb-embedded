@@ -78,10 +78,12 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup mise
-        uses: amfaro/actions/setup-mise@v1
+        uses: jdx/mise-action@v3
+        env:
+          MISE_ENV: ci
+          MISE_JOBS: "1"
         with:
-          app-id: ${{ secrets.REPO_CLIENT_ID }}
-          private-key: ${{ secrets.REPO_CLIENT_PRIVATE_KEY }}
+          experimental: true
 
       - name: Build custom shared libduckdb
         run: mise run build-duckdb
@@ -125,10 +127,12 @@ jobs:
           path: dist
 
       - name: Setup mise
-        uses: amfaro/actions/setup-mise@v1
+        uses: jdx/mise-action@v3
+        env:
+          MISE_ENV: ci
+          MISE_JOBS: "1"
         with:
-          app-id: ${{ secrets.REPO_CLIENT_ID }}
-          private-key: ${{ secrets.REPO_CLIENT_PRIVATE_KEY }}
+          experimental: true
 
       - name: Prepare runtime image context
         run: mise run prepare-runtime-image-context "${LINUX_ASSET_PATH}"
