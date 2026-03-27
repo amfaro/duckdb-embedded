@@ -67,6 +67,9 @@ jobs:
           - runner: blacksmith-4vcpu-ubuntu-2404
             asset_name: libduckdb-linux-amd64.zip
             lib_name: libduckdb.so
+          - runner: blacksmith-4vcpu-ubuntu-2404-arm
+            asset_name: libduckdb-linux-arm64.zip
+            lib_name: libduckdb.so
 
     runs-on: ${{ matrix.runner }}
 
@@ -108,6 +111,7 @@ jobs:
       RELEASE_TARGET: ${{ github.sha }}
       RUNTIME_IMAGE_REF: ghcr.io/amfaro/duckdb-embedded-runtime:${{ needs.validate-tag.outputs.release_tag }}
       LINUX_ASSET_PATH: dist/libduckdb-linux-amd64.zip/libduckdb-linux-amd64.zip
+      LINUX_ARM64_ASSET_PATH: dist/libduckdb-linux-arm64.zip/libduckdb-linux-arm64.zip
       OSX_ASSET_PATH: dist/libduckdb-osx-arm64.zip/libduckdb-osx-arm64.zip
       PUBLISH_RELEASE: ${{ needs.validate-tag.outputs.publish_release }}
 
@@ -168,6 +172,7 @@ jobs:
             "${RUNTIME_IMAGE_REF}" \
             "${{ steps.runtime-image.outputs.runtime_image_digest }}" \
             "${LINUX_ASSET_PATH}" \
+            "${LINUX_ARM64_ASSET_PATH}" \
             "${OSX_ASSET_PATH}"
 
       - name: Export release metadata
