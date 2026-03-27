@@ -211,7 +211,7 @@ jobs:
     steps:
       - name: Fetch secrets from Doppler
         id: doppler
-        uses: dopplerhq/secrets-fetch-action@v1
+        uses: dopplerhq/secrets-fetch-action@v2.0.0
         with:
           doppler-token: ${{ secrets.DOPPLER_TOKEN }}
           doppler-project: duckdb-embedded
