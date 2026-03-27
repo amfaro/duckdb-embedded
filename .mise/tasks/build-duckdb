@@ -43,9 +43,9 @@ case "$(uname -s):$(uname -m)" in
     ;;
 esac
 
-# evalexpr_rhai: pinned to commit compatible with DuckDB v1.3.x
+# evalexpr_rhai: pinned to commit compatible with DuckDB v1.5.x
 EVALEXPR_RHAI_REPO="https://github.com/Query-farm/evalexpr_rhai"
-EVALEXPR_RHAI_TAG="06bd6b9d74610fda430410686acebd6c2fcdab45"
+EVALEXPR_RHAI_TAG="c00bfae40225e39c66415b3bc5d8dcd64130b20f"
 EVALEXPR_RHAI_SOURCE="$VENDOR_DIR/evalexpr_rhai"
 
 echo "==> duckdb-embedded: building ${LIB_NAME} v${DUCKDB_VERSION} with bundled extensions"
