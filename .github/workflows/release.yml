@@ -209,12 +209,21 @@ jobs:
     needs: [validate-tag, publish-release]
     if: ${{ needs.validate-tag.outputs.dispatch_consumers == 'true' }}
     steps:
+      - name: Fetch secrets from Doppler
+        id: doppler
+        uses: dopplerhq/secrets-fetch-action@v1
+        with:
+          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+          doppler-project: duckdb-embedded
+          doppler-config: prod
+          inject-env-vars: false
+
       - name: Generate GitHub App Token
         id: app-token
         uses: actions/create-github-app-token@v2
         with:
-          app-id: ${{ secrets.DUCKDB_CLIENT_ID }}
-          private-key: ${{ secrets.DUCKDB_CLIENT_PRIVATE_KEY }}
+          app-id: ${{ steps.doppler.outputs.DUCKDB_CLIENT_ID }}
+          private-key: ${{ steps.doppler.outputs.DUCKDB_CLIENT_PRIVATE_KEY }}
           owner: amfaro
           repositories: calc
 
