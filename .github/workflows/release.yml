@@ -103,6 +103,9 @@ jobs:
       runtime_image_ref: ${{ steps.release-metadata.outputs.runtime_image_ref }}
       runtime_image_digest: ${{ steps.release-metadata.outputs.runtime_image_digest }}
       manifest_url: ${{ steps.release-metadata.outputs.manifest_url }}
+      duckdb_crate_version: ${{ steps.crate-versions.outputs.duckdb_crate_version }}
+      arrow_crate_version: ${{ steps.crate-versions.outputs.arrow_crate_version }}
+      parquet_crate_version: ${{ steps.crate-versions.outputs.parquet_crate_version }}
     permissions:
       contents: write
       packages: write
@@ -168,6 +171,11 @@ jobs:
             echo "runtime_image_digest=${RUNTIME_IMAGE_REF}" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Resolve crate versions
+        id: crate-versions
+        run: |
+          mise run resolve-crate-versions "${{ needs.validate-tag.outputs.duckdb_version }}" >> "$GITHUB_OUTPUT"
+
       - name: Write release manifest
         run: |
           mise run write-release-manifest \
@@ -177,7 +185,10 @@ jobs:
             "${{ steps.runtime-image.outputs.runtime_image_digest }}" \
             "${LINUX_ASSET_PATH}" \
             "${LINUX_ARM64_ASSET_PATH}" \
-            "${OSX_ASSET_PATH}"
+            "${OSX_ASSET_PATH}" \
+            "${{ steps.crate-versions.outputs.duckdb_crate_version }}" \
+            "${{ steps.crate-versions.outputs.arrow_crate_version }}" \
+            "${{ steps.crate-versions.outputs.parquet_crate_version }}"
 
       - name: Export release metadata
         id: release-metadata
@@ -238,4 +249,7 @@ jobs:
             --field 'client_payload[embedded_version]=${{ needs.validate-tag.outputs.release_tag }}' \
             --field 'client_payload[runtime_image_ref]=${{ needs.publish-release.outputs.runtime_image_ref }}' \
             --field 'client_payload[runtime_image_digest]=${{ needs.publish-release.outputs.runtime_image_digest }}' \
-            --field 'client_payload[manifest_url]=${{ needs.publish-release.outputs.manifest_url }}'
+            --field 'client_payload[manifest_url]=${{ needs.publish-release.outputs.manifest_url }}' \
+            --field 'client_payload[duckdb_crate_version]=${{ needs.publish-release.outputs.duckdb_crate_version }}' \
+            --field 'client_payload[arrow_crate_version]=${{ needs.publish-release.outputs.arrow_crate_version }}' \
+            --field 'client_payload[parquet_crate_version]=${{ needs.publish-release.outputs.parquet_crate_version }}'

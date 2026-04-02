@@ -8,6 +8,9 @@
 #USAGE arg "<linux_asset_path>"
 #USAGE arg "<linux_arm64_asset_path>"
 #USAGE arg "<osx_asset_path>"
+#USAGE arg "<duckdb_crate_version>"
+#USAGE arg "<arrow_crate_version>"
+#USAGE arg "<parquet_crate_version>"
 
 set -euo pipefail
 
@@ -18,6 +21,9 @@ RUNTIME_IMAGE_DIGEST="${4:?missing runtime_image_digest}"
 LINUX_ASSET_PATH="${5:?missing linux_asset_path}"
 LINUX_ARM64_ASSET_PATH="${6:?missing linux_arm64_asset_path}"
 OSX_ASSET_PATH="${7:?missing osx_asset_path}"
+DUCKDB_CRATE_VERSION="${8:?missing duckdb_crate_version}"
+ARROW_CRATE_VERSION="${9:?missing arrow_crate_version}"
+PARQUET_CRATE_VERSION="${10:?missing parquet_crate_version}"
 REPO="amfaro/duckdb-embedded"
 MANIFEST_PATH="release-manifest.json"
 
@@ -32,6 +38,11 @@ cat > "${MANIFEST_PATH}" <<EOF
 {
   "embedded_version": "${RELEASE_TAG}",
   "duckdb_version": "${DUCKDB_VERSION}",
+  "crates": {
+    "duckdb": "${DUCKDB_CRATE_VERSION}",
+    "arrow": "${ARROW_CRATE_VERSION}",
+    "parquet": "${PARQUET_CRATE_VERSION}"
+  },
   "release_url": "https://github.com/${REPO}/releases/tag/${RELEASE_TAG}",
   "manifest_url": "https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${MANIFEST_PATH}",
   "runtime_image": {

@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+#MISE description="Resolve Rust crate versions for a given DuckDB version"
+#USAGE arg "<duckdb_version>"
+
+set -euo pipefail
+
+DUCKDB_VERSION="${1:?missing duckdb_version}"
+
+# Compute duckdb crate version using encoding: 1.(major*10000+minor*100+patch).0
+IFS='.' read -r MAJOR MINOR PATCH <<< "$DUCKDB_VERSION"
+DUCKDB_CRATE_VERSION="1.$((MAJOR * 10000 + MINOR * 100 + PATCH)).0"
+
+# Fetch duckdb-rs workspace Cargo.toml at the matching release tag
+CARGO_TOML_URL="https://raw.githubusercontent.com/duckdb/duckdb-rs/v${DUCKDB_CRATE_VERSION}/Cargo.toml"
+CARGO_TOML=$(curl -sSf "$CARGO_TOML_URL")
+
+# Extract the arrow major version requirement from [workspace.dependencies]
+ARROW_MAJOR=$(echo "$CARGO_TOML" | grep -E '^arrow\s*=' | grep -oP 'version\s*=\s*"\K[0-9]+')
+
+if [[ -z "$ARROW_MAJOR" ]]; then
+  echo "::error::Could not extract arrow major version from ${CARGO_TOML_URL}" >&2
+  exit 1
+fi
+
+# Query crates.io for the latest stable arrow release in that major series
+ARROW_VERSION=$(curl -sSf \
+  -H "User-Agent: amfaro/duckdb-embedded resolve-crate-versions" \
+  "https://crates.io/api/v1/crates/arrow" \
+  | jq -r --arg major "$ARROW_MAJOR" \
+    '[.versions[] | select(.num | test("^" + $major + "\\.")) | select(.yanked == false) | .num]
+     | sort_by(split(".") | map(tonumber)) | last')
+
+if [[ -z "$ARROW_VERSION" || "$ARROW_VERSION" == "null" ]]; then
+  echo "::error::Could not resolve arrow version for major ${ARROW_MAJOR}" >&2
+  exit 1
+fi
+
+# parquet releases in lockstep with arrow from apache/arrow-rs
+PARQUET_VERSION="$ARROW_VERSION"
+
+echo "duckdb_crate_version=${DUCKDB_CRATE_VERSION}"
+echo "arrow_crate_version=${ARROW_VERSION}"
+echo "parquet_crate_version=${PARQUET_VERSION}"
