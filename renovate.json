@@ -11,5 +11,13 @@
       "versioningTemplate": "semver",
       "extractVersionTemplate": "^v?(?<version>\\d+\\.\\d+\\.\\d+)$"
     }
+  ],
+  "packageRules": [
+    {
+      "matchDepNames": ["duckdb/duckdb"],
+      "dependencyDashboardApproval": false,
+      "automerge": true,
+      "automergeType": "pr"
+    }
   ]
 }
