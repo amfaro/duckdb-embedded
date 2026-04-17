@@ -1,14 +1,15 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:best-practices"],
+  "extends": ["config:recommended"],
   "customManagers": [
     {
       "customType": "regex",
-      "fileMatch": ["^mise\\.toml$"],
+      "managerFilePatterns": ["^mise\\.toml$"],
       "matchStrings": ["DUCKDB_VERSION = \"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "duckdb/duckdb",
       "datasourceTemplate": "github-releases",
-      "versioningTemplate": "semver"
+      "versioningTemplate": "semver",
+      "extractVersionTemplate": "^v?(?<version>\\d+\\.\\d+\\.\\d+)$"
     }
   ]
 }
