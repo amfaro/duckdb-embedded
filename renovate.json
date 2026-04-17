@@ -4,7 +4,7 @@
   "customManagers": [
     {
       "customType": "regex",
-      "managerFilePatterns": ["^mise\\.toml$"],
+      "managerFilePatterns": ["mise.toml"],
       "matchStrings": ["DUCKDB_VERSION = \"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "duckdb/duckdb",
       "datasourceTemplate": "github-releases",
