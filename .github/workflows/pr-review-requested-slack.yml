@@ -1,0 +1,92 @@
+name: pr-review-requested-slack
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+on:
+  pull_request:
+    types: [review_requested]
+concurrency:
+  group: >-
+    pr-review-slack-${{ github.event.pull_request.number }}-${{ github.event.requested_reviewer.login }}
+  cancel-in-progress: true
+jobs:
+  notify-review-request:
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - name: Fetch secrets from Doppler
+        uses: dopplerhq/secrets-fetch-action@v2.0.0
+        id: doppler
+        with:
+          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+          doppler-project: shared
+          doppler-config: prod
+          inject-env-vars: false
+      - name: Generate GitHub App Token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ steps.doppler.outputs.WORKFLOW_CLIENT_ID }}
+          private-key: ${{ steps.doppler.outputs.WORKFLOW_CLIENT_PRIVATE_KEY }}
+          owner: amfaro
+      - name: Move linked issue to Code Review
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PROJECT_ID: PVT_kwDOCM-yes4A1-LG
+          STATUS_FIELD_ID: PVTSSF_lADOCM-yes4A1-LGzgrWwJc
+          STATUS_OPTION_ID: df73e18b
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          QUERY=$(cat <<'EOF'
+          query($owner: String!, $repo: String!, $prNumber: Int!) {
+            repository(owner: $owner, name: $repo) {
+              pullRequest(number: $prNumber) {
+                closingIssuesReferences(first: 20) {
+                  nodes {
+                    number
+                    projectItems(first: 20) {
+                      nodes {
+                        id
+                        project {
+                          id
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          EOF
+          )
+
+          ITEM_IDS=$(gh api graphql \
+            -f query="$QUERY" \
+            -F owner="$OWNER" \
+            -F repo="$REPO" \
+            -F prNumber="$PR_NUMBER" \
+            --jq ".data.repository.pullRequest.closingIssuesReferences.nodes[]? \
+              | .projectItems.nodes[]? \
+              | select(.project.id == \"$PROJECT_ID\") \
+              | .id")
+
+          if [[ -z "$ITEM_IDS" ]]; then
+            echo "No linked project items found for PR #${PR_NUMBER}."
+            exit 0
+          fi
+
+          while IFS= read -r item_id; do
+            if [[ -n "$item_id" ]]; then
+              gh project item-edit \
+                --project-id "$PROJECT_ID" \
+                --id "$item_id" \
+                --field-id "$STATUS_FIELD_ID" \
+                --single-select-option-id "$STATUS_OPTION_ID"
+            fi
+          done <<< "$ITEM_IDS"
+      - uses: amfaro/actions/notify-review-slack@v1
+        with:
+          slack-token: ${{ steps.doppler.outputs.SLACK_BOT_TOKEN_GITHUB_NOTIFY }}
