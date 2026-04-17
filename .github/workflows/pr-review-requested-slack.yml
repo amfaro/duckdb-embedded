@@ -29,6 +29,12 @@ jobs:
           app-id: ${{ steps.doppler.outputs.WORKFLOW_CLIENT_ID }}
           private-key: ${{ steps.doppler.outputs.WORKFLOW_CLIENT_PRIVATE_KEY }}
           owner: amfaro
+      - name: Checkout amfaro/actions
+        uses: actions/checkout@v4
+        with:
+          repository: amfaro/actions
+          token: ${{ steps.app-token.outputs.token }}
+          path: .github/actions
       - name: Move linked issue to Code Review
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -87,6 +93,6 @@ jobs:
                 --single-select-option-id "$STATUS_OPTION_ID"
             fi
           done <<< "$ITEM_IDS"
-      - uses: amfaro/actions/notify-review-slack@v1
+      - uses: ./.github/actions/notify-review-slack
         with:
           slack-token: ${{ steps.doppler.outputs.SLACK_BOT_TOKEN_GITHUB_NOTIFY }}
