@@ -30,7 +30,7 @@ jobs:
           private-key: ${{ steps.doppler.outputs.WORKFLOW_CLIENT_PRIVATE_KEY }}
           owner: amfaro
       - name: Checkout amfaro/actions
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: amfaro/actions
           token: ${{ steps.app-token.outputs.token }}
