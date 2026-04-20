@@ -26,7 +26,7 @@ jobs:
 
       - name: Generate GitHub App Token
         id: app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ steps.doppler.outputs.REPO_CLIENT_ID }}
           private-key: ${{ steps.doppler.outputs.REPO_CLIENT_PRIVATE_KEY }}
