@@ -12,3 +12,12 @@ updates:
       - dependency-type: all
     commit-message:
       prefix: "deps(ci): "
+  - package-ecosystem: rust-toolchain
+    directory: /
+    schedule:
+      interval: weekly
+      day: saturday
+      time: "02:00"
+      timezone: America/New_York
+    commit-message:
+      prefix: "deps(rust): "

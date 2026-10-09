@@ -4,9 +4,12 @@ cmake = "latest"
 ninja = "latest"
 
 # Rust toolchain — required for Corrosion when building evalexpr_rhai's Rust component.
-rust = [
-  { version = "1.93.1" }
-]
+# The version comes from `rust-toolchain.toml` (see `[settings]`), which
+# Dependabot keeps current. Do not pin rust here: a mise pin exports
+# RUSTUP_TOOLCHAIN, which overrides `rust-toolchain.toml`.
+
+[settings]
+idiomatic_version_file_enable_tools = ["rust"]
 
 [env]
 DUCKDB_VERSION = "1.5.6"
