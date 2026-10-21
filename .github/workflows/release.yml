@@ -78,9 +78,12 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup mise
-        uses: amfaro/actions/setup-mise@v1
+        uses: jdx/mise-action@v5
+        env:
+          MISE_ENV: ci
+          MISE_JOBS: "1"
         with:
-          tools: cmake ninja rust
+          install_args: cmake ninja rust
 
       - name: Build custom shared libduckdb
         run: mise run build-duckdb
@@ -127,7 +130,10 @@ jobs:
           path: dist
 
       - name: Setup mise
-        uses: amfaro/actions/setup-mise@v1
+        uses: jdx/mise-action@v5
+        env:
+          MISE_ENV: ci
+          MISE_JOBS: "1"
         with:
           install: false
 
