@@ -19,10 +19,7 @@ jobs:
       - name: Install mise
         uses: jdx/mise-action@v5
         with:
-          install: true
-
-      - name: Install actionlint only
-        run: mise install actionlint
+          install_args: actionlint
 
       - name: Lint GitHub Actions workflows
         run: actionlint -color
@@ -36,7 +33,7 @@ jobs:
       - name: Install mise
         uses: jdx/mise-action@v5
         with:
-          install: true
+          install: false
 
       - name: Install shellcheck only
         run: |

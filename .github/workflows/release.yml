@@ -83,7 +83,7 @@ jobs:
           MISE_ENV: ci
           MISE_JOBS: "1"
         with:
-          experimental: true
+          install_args: cmake ninja rust
 
       - name: Build custom shared libduckdb
         run: mise run build-duckdb
@@ -135,7 +135,7 @@ jobs:
           MISE_ENV: ci
           MISE_JOBS: "1"
         with:
-          experimental: true
+          install: false
 
       - name: Prepare runtime image context
         run: mise run prepare-runtime-image-context "${LINUX_ASSET_PATH}"
