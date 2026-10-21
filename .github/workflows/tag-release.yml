@@ -40,12 +40,9 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Setup mise
-        uses: jdx/mise-action@v5
-        env:
-          MISE_ENV: ci
-          MISE_JOBS: "1"
+        uses: amfaro/actions/setup-mise@v1
         with:
-          experimental: true
+          install: false
 
       - name: Create and push release tag
         run: mise run release:tag

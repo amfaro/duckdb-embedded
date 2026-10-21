@@ -21,12 +21,9 @@ jobs:
           fetch-depth: 0
 
       - name: Setup mise
-        uses: jdx/mise-action@v5
-        env:
-          MISE_ENV: ci
-          MISE_JOBS: "1"
+        uses: amfaro/actions/setup-mise@v1
         with:
-          experimental: true
+          install: false
 
       - name: Prepare release pull request
         env:

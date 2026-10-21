@@ -78,12 +78,9 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup mise
-        uses: jdx/mise-action@v5
-        env:
-          MISE_ENV: ci
-          MISE_JOBS: "1"
+        uses: amfaro/actions/setup-mise@v1
         with:
-          experimental: true
+          tools: cmake ninja rust
 
       - name: Build custom shared libduckdb
         run: mise run build-duckdb
@@ -130,12 +127,9 @@ jobs:
           path: dist
 
       - name: Setup mise
-        uses: jdx/mise-action@v5
-        env:
-          MISE_ENV: ci
-          MISE_JOBS: "1"
+        uses: amfaro/actions/setup-mise@v1
         with:
-          experimental: true
+          install: false
 
       - name: Prepare runtime image context
         run: mise run prepare-runtime-image-context "${LINUX_ASSET_PATH}"

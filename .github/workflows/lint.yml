@@ -17,12 +17,9 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Install mise
-        uses: jdx/mise-action@v5
+        uses: amfaro/actions/setup-mise@v1
         with:
-          install: true
-
-      - name: Install actionlint only
-        run: mise install actionlint
+          tools: actionlint
 
       - name: Lint GitHub Actions workflows
         run: actionlint -color
@@ -34,9 +31,9 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Install mise
-        uses: jdx/mise-action@v5
+        uses: amfaro/actions/setup-mise@v1
         with:
-          install: true
+          install: false
 
       - name: Install shellcheck only
         run: |
