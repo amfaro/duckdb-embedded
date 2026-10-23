@@ -1,0 +1,153 @@
+# Build the Linux archives, push the runtime image, publish the GitHub release,
+# and dispatch duckdb-embedded-release to calc. RWX has no macOS runners, so
+# .github/workflows/release.yml builds the macOS archive on the tag push (or
+# workflow_dispatch) and dispatches this run with its GitHub Actions run ID.
+#
+# publish-release=false is a dry run: everything is built, nothing is pushed.
+# dispatch-consumers needs publish-release, since calc reads the published manifest.
+#
+# Credentials: vault duckdb-embedded holds DOPPLER_TOKEN (GHCR_USERNAME and
+# GHCR_TOKEN in duckdb-embedded/prod). amfaro-rwx-workflows-management
+# (vault rwx-github-workflows) publishes the release and dispatches to calc.
+on:
+  dispatch:
+    key: duckdb-embedded-release
+    params:
+      - {key: release-tag, required: true, description: 'Release tag, e.g. v1.5.6-2'}
+      - {key: commit-sha, required: true}
+      - {key: macos-run-id, required: true, description: GitHub Actions run with the macOS archive}
+      - {key: publish-release, default: 'false'}
+      - {key: dispatch-consumers, default: 'false'}
+    init:
+      release-tag: ${{ event.dispatch.params.release-tag }}
+      commit-sha: ${{ event.dispatch.params.commit-sha }}
+      macos-run-id: ${{ event.dispatch.params.macos-run-id }}
+      publish-release: ${{ event.dispatch.params.publish-release }}
+      dispatch-consumers: ${{ event.dispatch.params.dispatch-consumers }}
+
+  # Dry runs only; pass the other params with --init.
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      publish-release: 'false'
+      dispatch-consumers: 'false'
+
+concurrency-pools:
+  - id: amfaro/duckdb-embedded:release
+    capacity: 1
+    on-overflow: queue
+
+base:
+  image: ubuntu:24.04
+  config: rwx/base 1.2.0
+
+tasks:
+  - key: validate-tag
+    run: |
+      if [[ ! "$RELEASE_TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-([0-9]+)$ ]]; then
+        echo "Tag '$RELEASE_TAG' does not match required format vX.Y.Z-N" >&2
+        exit 1
+      fi
+      printf '%s' "${BASH_REMATCH[1]}" > "$RWX_VALUES/duckdb-version"
+    env:
+      RELEASE_TAG: ${{ init.release-tag }}
+
+  - key: linux-amd64
+    call: ${{ run.dir }}/build.yml
+    after: validate-tag
+    init:
+      arch: x86_64
+      commit-sha: ${{ init.commit-sha }}
+      asset-name: libduckdb-linux-amd64.zip
+
+  - key: linux-arm64
+    call: ${{ run.dir }}/build.yml
+    after: validate-tag
+    init:
+      arch: arm64
+      commit-sha: ${{ init.commit-sha }}
+      asset-name: libduckdb-linux-arm64.zip
+
+  - key: github-cli
+    call: github/install-cli 1.1.0
+
+  - key: macos
+    use: github-cli
+    after: validate-tag
+    run: |
+      run_sha=$(gh run view "$MACOS_RUN_ID" --json headSha --jq .headSha)
+      if [[ "$run_sha" != "$COMMIT_SHA" ]]; then
+        echo "macOS run $MACOS_RUN_ID built $run_sha, not $COMMIT_SHA" >&2
+        exit 1
+      fi
+      gh run download "$MACOS_RUN_ID" --name libduckdb-osx-arm64.zip --dir .
+    env:
+      GH_REPO: amfaro/duckdb-embedded
+      GH_TOKEN: ${{ github.token }}
+      MACOS_RUN_ID: ${{ init.macos-run-id }}
+      COMMIT_SHA: ${{ init.commit-sha }}
+    outputs:
+      artifacts:
+        - key: archive
+          path: libduckdb-osx-arm64.zip
+
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/amfaro/duckdb-embedded.git
+      ref: ${{ init.commit-sha }}
+      github-token: ${{ github.token }}
+
+  - key: mise
+    use: [github-cli, code]
+    call: gmatter/setup-mise 1.1.0
+    filter:
+      - mise.toml
+    with:
+      tools: doppler,jq
+
+  - key: dist
+    use: mise
+    after: [linux-amd64, linux-arm64]
+    run: |
+      mkdir -p dist
+      cp "$LINUX_AMD64" "$LINUX_ARM64" "$OSX_ARM64" dist/
+    env:
+      LINUX_AMD64: ${{ tasks.linux-amd64.tasks.build.artifacts.archive }}
+      LINUX_ARM64: ${{ tasks.linux-arm64.tasks.build.artifacts.archive }}
+      OSX_ARM64: ${{ tasks.macos.artifacts.archive }}
+
+  - key: dry-run
+    use: dist
+    if: ${{ init.publish-release != 'true' }}
+    docker: true
+    cache: false
+    run: mise run release:publish "$RELEASE_TAG" "$DUCKDB_VERSION" "$RELEASE_TARGET"
+    env:
+      RELEASE_TAG: ${{ init.release-tag }}
+      DUCKDB_VERSION: ${{ tasks.validate-tag.values.duckdb-version }}
+      RELEASE_TARGET: ${{ init.commit-sha }}
+      PUBLISH_RELEASE: ${{ init.publish-release }}
+
+  - key: publish
+    use: dist
+    if: ${{ init.publish-release == 'true' }}
+    docker: true
+    cache: false
+    run: mise exec -- doppler run -- mise run release:publish "$RELEASE_TAG" "$DUCKDB_VERSION" "$RELEASE_TARGET"
+    env:
+      RELEASE_TAG: ${{ init.release-tag }}
+      DUCKDB_VERSION: ${{ tasks.validate-tag.values.duckdb-version }}
+      RELEASE_TARGET: ${{ init.commit-sha }}
+      PUBLISH_RELEASE: ${{ init.publish-release }}
+      DOPPLER_TOKEN: ${{ vaults.duckdb-embedded.secrets.DOPPLER_TOKEN }}
+      GH_REPO: amfaro/duckdb-embedded
+      GH_TOKEN: ${{ vaults.rwx-github-workflows.github-apps.amfaro-rwx-workflows-management.token }}
+
+  - key: notify-consumers
+    use: publish
+    if: ${{ init.publish-release == 'true' && init.dispatch-consumers == 'true' }}
+    cache: false
+    run: mise run release:notify-calc
+    env:
+      GH_TOKEN: ${{ vaults.rwx-github-workflows.github-apps.amfaro-rwx-workflows-management.token }}

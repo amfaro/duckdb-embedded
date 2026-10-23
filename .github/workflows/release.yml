@@ -1,3 +1,5 @@
+# RWX has no macOS runners, so this builds only the macOS archive, then
+# dispatches .rwx/release.yml, which builds Linux, publishes, and notifies calc.
 name: release
 
 on:
@@ -21,58 +23,12 @@ on:
         default: false
         type: boolean
 
+permissions:
+  contents: read
+
 jobs:
-  validate-tag:
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    outputs:
-      release_tag: ${{ steps.parse.outputs.release_tag }}
-      duckdb_version: ${{ steps.parse.outputs.duckdb_version }}
-      publish_release: ${{ steps.parse.outputs.publish_release }}
-      dispatch_consumers: ${{ steps.parse.outputs.dispatch_consumers }}
-    steps:
-      - name: Parse release tag
-        id: parse
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            TAG="${{ inputs.release_tag }}"
-            PUBLISH_RELEASE="${{ inputs.publish_release }}"
-            DISPATCH_CONSUMERS="${{ inputs.dispatch_consumers }}"
-          else
-            TAG="${GITHUB_REF_NAME}"
-            PUBLISH_RELEASE="true"
-            DISPATCH_CONSUMERS="true"
-          fi
-
-          if [[ ! "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-([0-9]+)$ ]]; then
-            echo "::error::Tag '$TAG' does not match required format vX.Y.Z-N"
-            exit 1
-          fi
-
-          {
-            echo "release_tag=${TAG}"
-            echo "duckdb_version=${BASH_REMATCH[1]}"
-            echo "publish_release=${PUBLISH_RELEASE}"
-            echo "dispatch_consumers=${DISPATCH_CONSUMERS}"
-          } >> "$GITHUB_OUTPUT"
-
-  build-artifacts:
-    needs: validate-tag
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: macos-14
-            asset_name: libduckdb-osx-arm64.zip
-            lib_name: libduckdb.dylib
-          - runner: blacksmith-4vcpu-ubuntu-2404
-            asset_name: libduckdb-linux-amd64.zip
-            lib_name: libduckdb.so
-          - runner: blacksmith-4vcpu-ubuntu-2404-arm
-            asset_name: libduckdb-linux-arm64.zip
-            lib_name: libduckdb.so
-
-    runs-on: ${{ matrix.runner }}
-
+  build-macos:
+    runs-on: macos-14
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -89,136 +45,18 @@ jobs:
         run: mise run build-duckdb
 
       - name: Package release archive
-        run: mise run package-release-artifact "${{ matrix.lib_name }}" "${{ matrix.asset_name }}"
+        run: mise run package-release-artifact libduckdb.dylib libduckdb-osx-arm64.zip
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.asset_name }}
-          path: ${{ matrix.asset_name }}
+          name: libduckdb-osx-arm64.zip
+          path: libduckdb-osx-arm64.zip
           if-no-files-found: error
 
-  publish-release:
-    outputs:
-      runtime_image_ref: ${{ steps.release-metadata.outputs.runtime_image_ref }}
-      runtime_image_digest: ${{ steps.release-metadata.outputs.runtime_image_digest }}
-      manifest_url: ${{ steps.release-metadata.outputs.manifest_url }}
-      duckdb_crate_version: ${{ steps.crate-versions.outputs.duckdb_crate_version }}
-      arrow_crate_version: ${{ steps.crate-versions.outputs.arrow_crate_version }}
-      parquet_crate_version: ${{ steps.crate-versions.outputs.parquet_crate_version }}
-    permissions:
-      contents: write
-      packages: write
+  dispatch-rwx:
+    needs: build-macos
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    needs: [validate-tag, build-artifacts]
-    env:
-      RELEASE_TAG: ${{ needs.validate-tag.outputs.release_tag }}
-      RELEASE_TARGET: ${{ github.sha }}
-      RUNTIME_IMAGE_REF: ghcr.io/amfaro/duckdb-embedded-runtime:${{ needs.validate-tag.outputs.release_tag }}
-      LINUX_ASSET_PATH: dist/libduckdb-linux-amd64.zip/libduckdb-linux-amd64.zip
-      LINUX_ARM64_ASSET_PATH: dist/libduckdb-linux-arm64.zip/libduckdb-linux-arm64.zip
-      OSX_ASSET_PATH: dist/libduckdb-osx-arm64.zip/libduckdb-osx-arm64.zip
-      PUBLISH_RELEASE: ${{ needs.validate-tag.outputs.publish_release }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      - name: Download workflow artifacts
-        uses: actions/download-artifact@v8
-        with:
-          path: dist
-
-      - name: Setup mise
-        uses: jdx/mise-action@v5
-        env:
-          MISE_ENV: ci
-          MISE_JOBS: "1"
-        with:
-          install: false
-
-      - name: Prepare runtime image context
-        run: mise run prepare-runtime-image-context "${LINUX_ASSET_PATH}"
-
-      - name: Login to GitHub Container Registry
-        if: ${{ env.PUBLISH_RELEASE == 'true' }}
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ github.token }}
-
-      - name: Build and push runtime image
-        id: push-runtime
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: .github/docker/runtime.Dockerfile
-          push: ${{ env.PUBLISH_RELEASE == 'true' }}
-          platforms: linux/amd64
-          tags: ${{ env.RUNTIME_IMAGE_REF }}
-          build-args: |
-            RELEASE_TAG=${{ env.RELEASE_TAG }}
-            DUCKDB_VERSION=${{ needs.validate-tag.outputs.duckdb_version }}
-            VCS_REF=${{ env.RELEASE_TARGET }}
-
-      - name: Resolve runtime image digest
-        id: runtime-image
-        run: |
-          if [[ "${PUBLISH_RELEASE}" == "true" ]]; then
-            echo "runtime_image_digest=ghcr.io/amfaro/duckdb-embedded-runtime@${{ steps.push-runtime.outputs.digest }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "runtime_image_digest=${RUNTIME_IMAGE_REF}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Resolve crate versions
-        id: crate-versions
-        run: |
-          mise run resolve-crate-versions "${{ needs.validate-tag.outputs.duckdb_version }}" >> "$GITHUB_OUTPUT"
-
-      - name: Write release manifest
-        run: |
-          mise run write-release-manifest \
-            "${RELEASE_TAG}" \
-            "${{ needs.validate-tag.outputs.duckdb_version }}" \
-            "${RUNTIME_IMAGE_REF}" \
-            "${{ steps.runtime-image.outputs.runtime_image_digest }}" \
-            "${LINUX_ASSET_PATH}" \
-            "${LINUX_ARM64_ASSET_PATH}" \
-            "${OSX_ASSET_PATH}" \
-            "${{ steps.crate-versions.outputs.duckdb_crate_version }}" \
-            "${{ steps.crate-versions.outputs.arrow_crate_version }}" \
-            "${{ steps.crate-versions.outputs.parquet_crate_version }}"
-
-      - name: Export release metadata
-        id: release-metadata
-        run: |
-          {
-            echo "runtime_image_ref=${RUNTIME_IMAGE_REF}"
-            echo "runtime_image_digest=${{ steps.runtime-image.outputs.runtime_image_digest }}"
-            if [[ "${PUBLISH_RELEASE}" == "true" ]]; then
-              echo "manifest_url=https://github.com/amfaro/duckdb-embedded/releases/download/${RELEASE_TAG}/release-manifest.json"
-            else
-              echo "manifest_url=not-published"
-            fi
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Publish GitHub release
-        if: ${{ env.PUBLISH_RELEASE == 'true' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || \
-            gh release create "$RELEASE_TAG" \
-              --target "$RELEASE_TARGET" \
-              --title "$RELEASE_TAG" \
-              --notes ""
-          gh release upload "$RELEASE_TAG" dist/*/*.zip release-manifest.json --clobber
-
-  notify-consumers:
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    needs: [validate-tag, publish-release]
-    if: ${{ needs.validate-tag.outputs.dispatch_consumers == 'true' }}
     steps:
       - name: Fetch secrets from Doppler
         id: doppler
@@ -229,27 +67,16 @@ jobs:
           doppler-config: prod
           inject-env-vars: false
 
-      - name: Generate GitHub App Token
-        id: app-token
-        uses: actions/create-github-app-token@v3
+      - uses: amfaro/actions/rwx-dispatch@v1
         with:
-          app-id: ${{ steps.doppler.outputs.DUCKDB_CLIENT_ID }}
-          private-key: ${{ steps.doppler.outputs.DUCKDB_CLIENT_PRIVATE_KEY }}
-          owner: amfaro
-          repositories: calc
-
-      - name: Dispatch DuckDB upgrade to calc
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          gh api repos/amfaro/calc/dispatches \
-            --method POST \
-            --field event_type="duckdb-embedded-release" \
-            --field 'client_payload[duckdb_version]=${{ needs.validate-tag.outputs.duckdb_version }}' \
-            --field 'client_payload[embedded_version]=${{ needs.validate-tag.outputs.release_tag }}' \
-            --field 'client_payload[runtime_image_ref]=${{ needs.publish-release.outputs.runtime_image_ref }}' \
-            --field 'client_payload[runtime_image_digest]=${{ needs.publish-release.outputs.runtime_image_digest }}' \
-            --field 'client_payload[manifest_url]=${{ needs.publish-release.outputs.manifest_url }}' \
-            --field 'client_payload[duckdb_crate_version]=${{ needs.publish-release.outputs.duckdb_crate_version }}' \
-            --field 'client_payload[arrow_crate_version]=${{ needs.publish-release.outputs.arrow_crate_version }}' \
-            --field 'client_payload[parquet_crate_version]=${{ needs.publish-release.outputs.parquet_crate_version }}'
+          key: duckdb-embedded-release
+          # Tag pushes load the RWX definitions from main; manual runs use their branch.
+          ref: ${{ github.ref_type == 'tag' && 'main' || github.ref_name }}
+          title: release ${{ inputs.release_tag || github.ref_name }}
+          params: |
+            release-tag=${{ inputs.release_tag || github.ref_name }}
+            commit-sha=${{ github.sha }}
+            macos-run-id=${{ github.run_id }}
+            publish-release=${{ github.event_name == 'push' || inputs.publish_release }}
+            dispatch-consumers=${{ github.event_name == 'push' || inputs.dispatch_consumers }}
+          rwx-access-token: ${{ steps.doppler.outputs.RWX_DISPATCH_TOKEN }}

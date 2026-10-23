@@ -1,0 +1,43 @@
+# Build one Linux libduckdb release archive. Embedded by release.yml once per
+# architecture, since an RWX run has a single base architecture.
+base:
+  image: ubuntu:24.04
+  config: rwx/base 1.2.0
+  arch: ${{ init.arch }}
+
+tasks:
+  - key: packages
+    run: |
+      sudo apt-get update
+      sudo apt-get install -y build-essential zip
+      sudo apt-get clean
+
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/amfaro/duckdb-embedded.git
+      ref: ${{ init.commit-sha }}
+      github-token: ${{ github.token }}
+
+  - key: mise
+    use: [packages, code]
+    call: gmatter/setup-mise 1.1.0
+    filter:
+      - mise.toml
+      - rust-toolchain.toml
+    with:
+      tools: cmake,ninja,rust
+
+  - key: build
+    use: mise
+    runner:
+      cpus: 8
+    run: |
+      mise run build-duckdb
+      mise run package-release-artifact libduckdb.so "$ASSET_NAME"
+    env:
+      ASSET_NAME: ${{ init.asset-name }}
+    outputs:
+      artifacts:
+        - key: archive
+          path: ${{ init.asset-name }}
