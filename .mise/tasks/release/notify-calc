@@ -1,18 +1,17 @@
 #!/usr/bin/env bash
-#MISE description="Dispatch duckdb-embedded-release to amfaro/calc"
+#MISE description="Dispatch calc-duckdb-upgrade to amfaro/calc"
 #MISE hide=true
 #
-# Reads release-metadata.env from release:publish. GH_TOKEN needs Contents
-# write on amfaro/calc. Stays a repository_dispatch until calc has an RWX receiver.
+# Reads release-metadata.env from release:publish. Run under doppler run, which
+# provides RWX_DISPATCH_TOKEN for calc's .rwx/duckdb-upgrade.yml receiver.
 
 set -euo pipefail
 
 metadata() { sed -n "s/^$1=//p" release-metadata.env; }
 
-fields=(--field event_type="duckdb-embedded-release")
-for key in duckdb_version embedded_version runtime_image_ref runtime_image_digest manifest_url \
-  duckdb_crate_version arrow_crate_version parquet_crate_version; do
-  fields+=(--field "client_payload[${key}]=$(metadata "${key}")")
+params=()
+for key in embedded_version runtime_image_ref runtime_image_digest manifest_url; do
+  params+=(--param "${key//_/-}=$(metadata "${key}")")
 done
 
-gh api repos/amfaro/calc/dispatches --method POST "${fields[@]}"
+RWX_ACCESS_TOKEN="${RWX_DISPATCH_TOKEN:?}" rwx dispatch calc-duckdb-upgrade "${params[@]}"

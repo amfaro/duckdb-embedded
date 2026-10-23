@@ -1,9 +1,13 @@
+[tool_alias]
+rwx = "github:rwx-cloud/rwx"
+
 [tools]
 actionlint = "latest"
 cmake = "latest"
 doppler = "latest"
 jq = "latest"
 ninja = "latest"
+rwx = "3.35.0"
 shellcheck = "latest"
 
 # Rust toolchain — required for Corrosion when building evalexpr_rhai's Rust component.
