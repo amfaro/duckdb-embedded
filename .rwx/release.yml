@@ -1,14 +1,8 @@
-# Build the Linux archives, push the runtime image, publish the GitHub release,
-# and dispatch duckdb-embedded-release to calc. RWX has no macOS runners, so
-# .github/workflows/release.yml builds the macOS archive on the tag push (or
-# workflow_dispatch) and dispatches this run with its GitHub Actions run ID.
-#
-# publish-release=false is a dry run: everything is built, nothing is pushed.
-# dispatch-consumers needs publish-release, since calc reads the published manifest.
-#
-# Credentials: vault duckdb-embedded holds DOPPLER_TOKEN (GHCR_USERNAME and
-# GHCR_TOKEN in duckdb-embedded/prod). amfaro-rwx-workflows-management
-# (vault rwx-github-workflows) publishes the release and dispatches to calc.
+# Build Linux, push the runtime image, publish the release, and notify calc.
+# Dispatched by .github/workflows/release.yml after its macOS build (RWX has
+# no macOS runners). publish-release=false is a side-effect-free dry run;
+# dispatch-consumers needs publish-release, since calc reads the manifest.
+# Vault duckdb-embedded holds DOPPLER_TOKEN for the GHCR credentials.
 on:
   dispatch:
     key: duckdb-embedded-release

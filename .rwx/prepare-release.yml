@@ -1,9 +1,6 @@
-# On main pushes: open or update the release PR (VERSION bump) when anything
-# other than VERSION changed, or push the release tag when VERSION changed.
-# The tag push starts .github/workflows/release.yml.
-#
-# Credentials: amfaro-rwx-workflows-management (RWX vault) pushes the release
-# branch and tag and opens the PR. Unlike GITHUB_TOKEN, its pushes trigger CI.
+# On main pushes: open or update the release PR when anything but VERSION
+# changed, or push the release tag (starting release.yml) when VERSION changed.
+# The vault App token, unlike GITHUB_TOKEN, lets those pushes trigger CI.
 on:
   github:
     push:
