@@ -1,3 +1,4 @@
+# Inlined: this public repo cannot use the private amfaro/actions.
 # RWX has no macOS runners, so this builds only the macOS archive, then
 # dispatches .rwx/release.yml, which builds Linux, publishes, and notifies calc.
 name: release
@@ -67,16 +68,24 @@ jobs:
           doppler-config: prod
           inject-env-vars: false
 
-      - uses: amfaro/actions/rwx-dispatch@v1
+      - uses: jdx/mise-action@v5
         with:
-          key: duckdb-embedded-release
+          install: false
+
+      - name: Dispatch RWX run
+        env:
+          RWX_ACCESS_TOKEN: ${{ steps.doppler.outputs.RWX_DISPATCH_TOKEN }}
           # Tag pushes load the RWX definitions from main; manual runs use their branch.
-          ref: ${{ github.ref_type == 'tag' && 'main' || github.ref_name }}
-          title: release ${{ inputs.release_tag || github.ref_name }}
-          params: |
-            release-tag=${{ inputs.release_tag || github.ref_name }}
-            commit-sha=${{ github.sha }}
-            macos-run-id=${{ github.run_id }}
-            publish-release=${{ github.event_name == 'push' || inputs.publish_release }}
-            dispatch-consumers=${{ github.event_name == 'push' || inputs.dispatch_consumers }}
-          rwx-access-token: ${{ steps.doppler.outputs.RWX_DISPATCH_TOKEN }}
+          RWX_REF: ${{ github.ref_type == 'tag' && 'main' || github.ref_name }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+          PUBLISH_RELEASE: ${{ github.event_name == 'push' || inputs.publish_release }}
+          DISPATCH_CONSUMERS: ${{ github.event_name == 'push' || inputs.dispatch_consumers }}
+        run: >-
+          mise exec github:rwx-cloud/rwx@3.35.0 --
+          rwx dispatch duckdb-embedded-release --ref "$RWX_REF"
+          --title "release $RELEASE_TAG"
+          --param "release-tag=$RELEASE_TAG"
+          --param "commit-sha=$GITHUB_SHA"
+          --param "macos-run-id=$GITHUB_RUN_ID"
+          --param "publish-release=$PUBLISH_RELEASE"
+          --param "dispatch-consumers=$DISPATCH_CONSUMERS"

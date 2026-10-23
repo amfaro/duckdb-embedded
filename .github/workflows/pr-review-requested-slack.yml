@@ -1,3 +1,4 @@
+# Inlined: this public repo cannot use the private amfaro/actions.
 # RWX has no review_requested trigger, so this only dispatches
 # .rwx/pr-review-requested.yml.
 name: pr-review-requested-slack
@@ -26,10 +27,16 @@ jobs:
           doppler-config: prod
           inject-env-vars: false
 
-      - uses: amfaro/actions/rwx-dispatch@v1
+      - uses: jdx/mise-action@v5
         with:
-          key: duckdb-embedded-pr-review-requested
-          params: |
-            pr-number=${{ github.event.pull_request.number }}
-            reviewer=${{ github.event.requested_reviewer.login }}
-          rwx-access-token: ${{ steps.doppler.outputs.RWX_DISPATCH_TOKEN }}
+          install: false
+
+      - name: Dispatch RWX run
+        env:
+          RWX_ACCESS_TOKEN: ${{ steps.doppler.outputs.RWX_DISPATCH_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEWER: ${{ github.event.requested_reviewer.login }}
+        run: >-
+          mise exec github:rwx-cloud/rwx@3.35.0 --
+          rwx dispatch duckdb-embedded-pr-review-requested --ref main
+          --param "pr-number=$PR_NUMBER" --param "reviewer=$REVIEWER"
