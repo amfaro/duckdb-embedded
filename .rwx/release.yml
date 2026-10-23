@@ -97,7 +97,7 @@ tasks:
     filter:
       - mise.toml
     with:
-      tools: doppler,jq
+      tools: doppler,jq,rwx
 
   - key: dist
     use: mise
@@ -141,6 +141,6 @@ tasks:
     use: publish
     if: ${{ init.publish-release == 'true' && init.dispatch-consumers == 'true' }}
     cache: false
-    run: mise run release:notify-calc
+    run: mise exec -- doppler run -- mise run release:notify-calc
     env:
-      GH_TOKEN: ${{ vaults.rwx-github-workflows.github-apps.amfaro-rwx-workflows-management.token }}
+      DOPPLER_TOKEN: ${{ vaults.duckdb-embedded.secrets.DOPPLER_TOKEN }}
