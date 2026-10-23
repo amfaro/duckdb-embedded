@@ -77,7 +77,7 @@ tasks:
       gh run download "$MACOS_RUN_ID" --name libduckdb-osx-arm64.zip --dir .
     env:
       GH_REPO: amfaro/duckdb-embedded
-      GH_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ vaults.rwx-github-workflows.github-apps.amfaro-rwx-workflows-management.token }}
       MACOS_RUN_ID: ${{ init.macos-run-id }}
       COMMIT_SHA: ${{ init.commit-sha }}
     outputs:
