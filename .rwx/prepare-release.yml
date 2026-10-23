@@ -37,7 +37,7 @@ tasks:
       repository: amfaro/duckdb-embedded
       base-ref: ${{ init.base-ref }}
       head-ref: ${{ init.commit-sha }}
-      github-token: ${{ github.token }}
+      github-token: ${{ vaults.rwx-github-workflows.github-apps.amfaro-rwx-workflows-management.token }}
       patterns: '**'
 
   - key: version
@@ -47,7 +47,7 @@ tasks:
       repository: amfaro/duckdb-embedded
       base-ref: ${{ init.base-ref }}
       head-ref: ${{ init.commit-sha }}
-      github-token: ${{ github.token }}
+      github-token: ${{ vaults.rwx-github-workflows.github-apps.amfaro-rwx-workflows-management.token }}
       patterns: VERSION
 
   - key: code

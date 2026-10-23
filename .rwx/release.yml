@@ -96,7 +96,6 @@ tasks:
     with:
       repository: https://github.com/amfaro/duckdb-embedded.git
       ref: ${{ init.commit-sha }}
-      github-token: ${{ github.token }}
 
   - key: mise
     use: [github-cli, code]
