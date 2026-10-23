@@ -16,11 +16,13 @@ base:
 
 tasks:
   - key: review-requested
-    call: gmatter/review-requested 1.0.0
+    call: gmatter/review-requested 1.1.0
     with:
       pr-number: ${{ init.pr-number }}
       reviewer: ${{ init.reviewer }}
       repository: amfaro/duckdb-embedded
       channel: calc-dev
       github-token: ${{ vaults.rwx-github-workflows.github-apps.amfaro-rwx-workflows-management.token }}
-      slack-token: ${{ vaults.duckdb-embedded.secrets.SLACK_BOT_TOKEN }}
+      doppler-token: ${{ vaults.duckdb-embedded.secrets.DOPPLER_TOKEN }}
+      doppler-project: duckdb-embedded
+      doppler-config: prod
