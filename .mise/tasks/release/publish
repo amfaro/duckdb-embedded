@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+#MISE description="Build the runtime image, write the release manifest, and publish the release"
+#MISE hide=true
+#USAGE arg "<release_tag>"
+#USAGE arg "<duckdb_version>"
+#USAGE arg "<release_target>"
+#
+# Expects the release archives in dist/. Only PUBLISH_RELEASE=true pushes the
+# image (GHCR_USERNAME, GHCR_TOKEN) and publishes the release (GH_TOKEN).
+
+set -euo pipefail
+
+RELEASE_TAG="${1:?missing release_tag}"
+DUCKDB_VERSION="${2:?missing duckdb_version}"
+RELEASE_TARGET="${3:?missing release_target}"
+PUBLISH_RELEASE="${PUBLISH_RELEASE:-false}"
+RUNTIME_IMAGE_REF="ghcr.io/amfaro/duckdb-embedded-runtime:${RELEASE_TAG}"
+LINUX_ASSET_PATH=dist/libduckdb-linux-amd64.zip
+LINUX_ARM64_ASSET_PATH=dist/libduckdb-linux-arm64.zip
+OSX_ASSET_PATH=dist/libduckdb-osx-arm64.zip
+
+mise run prepare-runtime-image-context "${LINUX_ASSET_PATH}"
+
+docker build \
+  --platform linux/amd64 \
+  --file .github/docker/runtime.Dockerfile \
+  --tag "${RUNTIME_IMAGE_REF}" \
+  --build-arg "RELEASE_TAG=${RELEASE_TAG}" \
+  --build-arg "DUCKDB_VERSION=${DUCKDB_VERSION}" \
+  --build-arg "VCS_REF=${RELEASE_TARGET}" \
+  .
+
+if [[ "${PUBLISH_RELEASE}" == "true" ]]; then
+  docker login ghcr.io --username "${GHCR_USERNAME:?}" --password-stdin <<< "${GHCR_TOKEN:?}"
+  docker push "${RUNTIME_IMAGE_REF}"
+  runtime_image_digest=$(docker inspect --format '{{index .RepoDigests 0}}' "${RUNTIME_IMAGE_REF}")
+  manifest_url="https://github.com/amfaro/duckdb-embedded/releases/download/${RELEASE_TAG}/release-manifest.json"
+else
+  runtime_image_digest="${RUNTIME_IMAGE_REF}"
+  manifest_url="not-published"
+fi
+
+crate_versions=$(mise run resolve-crate-versions "${DUCKDB_VERSION}")
+crate_version() { sed -n "s/^$1_crate_version=//p" <<< "${crate_versions}"; }
+duckdb_crate_version=$(crate_version duckdb)
+arrow_crate_version=$(crate_version arrow)
+parquet_crate_version=$(crate_version parquet)
+
+mise run write-release-manifest \
+  "${RELEASE_TAG}" \
+  "${DUCKDB_VERSION}" \
+  "${RUNTIME_IMAGE_REF}" \
+  "${runtime_image_digest}" \
+  "${LINUX_ASSET_PATH}" \
+  "${LINUX_ARM64_ASSET_PATH}" \
+  "${OSX_ASSET_PATH}" \
+  "${duckdb_crate_version}" \
+  "${arrow_crate_version}" \
+  "${parquet_crate_version}"
+
+cat > release-metadata.env <<METADATA
+duckdb_version=${DUCKDB_VERSION}
+embedded_version=${RELEASE_TAG}
+runtime_image_ref=${RUNTIME_IMAGE_REF}
+runtime_image_digest=${runtime_image_digest}
+manifest_url=${manifest_url}
+duckdb_crate_version=${duckdb_crate_version}
+arrow_crate_version=${arrow_crate_version}
+parquet_crate_version=${parquet_crate_version}
+METADATA
+
+if [[ "${PUBLISH_RELEASE}" == "true" ]]; then
+  gh release view "${RELEASE_TAG}" >/dev/null 2>&1 || \
+    gh release create "${RELEASE_TAG}" \
+      --target "${RELEASE_TARGET}" \
+      --title "${RELEASE_TAG}" \
+      --notes ""
+  gh release upload "${RELEASE_TAG}" dist/*.zip release-manifest.json --clobber
+fi

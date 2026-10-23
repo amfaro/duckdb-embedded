@@ -1,7 +1,10 @@
 [tools]
 actionlint = "latest"
 cmake = "latest"
+doppler = "latest"
+jq = "latest"
 ninja = "latest"
+shellcheck = "latest"
 
 # Rust toolchain — required for Corrosion when building evalexpr_rhai's Rust component.
 # The version comes from `rust-toolchain.toml` (see `[settings]`), which

@@ -1,0 +1,59 @@
+# Inlined: this public repo cannot use the private amfaro/actions.
+# Approves pin-only rwx-update-* PRs from .rwx/update-rwx-packages.yml.
+# pull_request_target loads this file from the base branch, so a PR cannot
+# change the gate that judges it. PR head code is never checked out.
+name: rwx-update-auto-approve
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: rwx-update-auto-approve-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  approve:
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    if: >-
+      github.event.pull_request.user.login == 'amfaro-rwx-workflows-management[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'rwx-update-')
+    steps:
+      - name: Approve if the diff only moves RWX package pins
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -o pipefail
+          # Diff and approval are pinned to this event's head SHA.
+          gh api "repos/$GITHUB_REPOSITORY/compare/$BASE_SHA...$HEAD_SHA" | python3 -I -c '
+          import json, re, sys
+          from collections import Counter
+          pin = re.compile(r"\s*(?:-\s+)?(call|config):\s+([a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*)\s+\d+\.\d+\.\d+\s*")
+          files = json.load(sys.stdin)["files"]
+          if not 0 < len(files) < 300:
+              sys.exit("unexpected file count")
+          for f in files:
+              name = f["filename"]
+              if f["status"] != "modified" or not name.startswith(".rwx/") or "patch" not in f:
+                  sys.exit(f"{name}: not an in-place .rwx/ edit")
+              moved = {"-": Counter(), "+": Counter()}
+              for line in f["patch"].splitlines():
+                  if line[:1] in ("-", "+"):
+                      m = pin.fullmatch(line[1:])
+                      if not m:
+                          sys.exit(f"{name}: non-pin change: {line}")
+                      moved[line[0]][m.groups()] += 1
+                  elif line[:1] not in (" ", "\\") and not line.startswith("@@"):
+                      sys.exit(f"{name}: unexpected patch line: {line}")
+              if not moved["+"] or moved["-"] != moved["+"]:
+                  sys.exit(f"{name}: pins do not just change versions")
+          '
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews" -f event=APPROVE \
+            -f commit_id="$HEAD_SHA" -f body='Auto-approved RWX package pin update.' > /dev/null

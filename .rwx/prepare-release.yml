@@ -1,0 +1,80 @@
+# On main pushes: open or update the release PR when anything but VERSION
+# changed, or push the release tag (starting release.yml) when VERSION changed.
+# The vault App token, unlike GITHUB_TOKEN, lets those pushes trigger CI.
+on:
+  github:
+    push:
+      if: ${{ event.git.branch == 'main' }}
+      init:
+        commit-sha: ${{ event.git.sha }}
+        base-ref: ${{ event.github.push.before }}
+
+  # Manual runs pass base-ref with --init.
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+
+concurrency-pools:
+  - id: amfaro/duckdb-embedded:prepare-release
+    capacity: 1
+    on-overflow: queue
+
+base:
+  image: ubuntu:24.04
+  config: rwx/base 1.2.0
+
+tasks:
+  - key: github-cli
+    call: github/install-cli 1.1.0
+
+  - key: changes
+    use: github-cli
+    call: github/compare 1.1.1
+    with:
+      repository: amfaro/duckdb-embedded
+      base-ref: ${{ init.base-ref }}
+      head-ref: ${{ init.commit-sha }}
+      github-token: ${{ vaults.rwx-github-workflows.github-apps.amfaro-rwx-workflows-management.token }}
+      patterns: '**'
+
+  - key: version
+    use: github-cli
+    call: github/compare 1.1.1
+    with:
+      repository: amfaro/duckdb-embedded
+      base-ref: ${{ init.base-ref }}
+      head-ref: ${{ init.commit-sha }}
+      github-token: ${{ vaults.rwx-github-workflows.github-apps.amfaro-rwx-workflows-management.token }}
+      patterns: VERSION
+
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/amfaro/duckdb-embedded.git
+      ref: ${{ init.commit-sha }}
+      fetch-full-depth: true
+      preserve-git-dir: true
+      github-token: ${{ vaults.rwx-github-workflows.github-apps.amfaro-rwx-workflows-management.token }}
+
+  - key: mise
+    use: [github-cli, code]
+    call: gmatter/setup-mise 1.1.0
+    with:
+      install: 'false'
+
+  # GitHub Actions used paths-ignore: VERSION for this and paths: VERSION for the tag.
+  - key: prepare-release
+    use: mise
+    if: ${{ trim(tasks.changes.values.changes) != 'VERSION' }}
+    cache: false
+    run: mise run release:prepare
+    env:
+      GH_TOKEN: ${{ vaults.rwx-github-workflows.github-apps.amfaro-rwx-workflows-management.token }}
+
+  - key: tag-release
+    use: mise
+    if: ${{ tasks.version.values.has-changes }}
+    cache: false
+    run: mise run release:tag
+    env:
+      GITHUB_SHA: ${{ init.commit-sha }}

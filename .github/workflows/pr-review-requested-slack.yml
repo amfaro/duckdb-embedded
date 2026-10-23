@@ -1,98 +1,42 @@
+# Inlined: this public repo cannot use the private amfaro/actions.
+# RWX has no review_requested trigger, so this only dispatches
+# .rwx/pr-review-requested.yml.
 name: pr-review-requested-slack
-permissions:
-  contents: read
-  issues: read
-  pull-requests: read
+
 on:
   pull_request:
     types: [review_requested]
+
 concurrency:
   group: >-
     pr-review-slack-${{ github.event.pull_request.number }}-${{ github.event.requested_reviewer.login }}
   cancel-in-progress: true
+
+permissions: {}
+
 jobs:
-  notify-review-request:
+  dispatch:
     runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Fetch secrets from Doppler
-        uses: dopplerhq/secrets-fetch-action@v2.0.0
         id: doppler
+        uses: dopplerhq/secrets-fetch-action@v2.0.0
         with:
           doppler-token: ${{ secrets.DOPPLER_TOKEN }}
-          doppler-project: shared
+          doppler-project: duckdb-embedded
           doppler-config: prod
           inject-env-vars: false
-      - name: Generate GitHub App Token
-        id: app-token
-        uses: actions/create-github-app-token@v3
+
+      - uses: jdx/mise-action@v5
         with:
-          app-id: ${{ steps.doppler.outputs.WORKFLOW_CLIENT_ID }}
-          private-key: ${{ steps.doppler.outputs.WORKFLOW_CLIENT_PRIVATE_KEY }}
-          owner: amfaro
-      - name: Checkout amfaro/actions
-        uses: actions/checkout@v7
-        with:
-          repository: amfaro/actions
-          token: ${{ steps.app-token.outputs.token }}
-          path: .github/actions
-      - name: Move linked issue to Code Review
+          install: false
+
+      - name: Dispatch RWX run
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          PROJECT_ID: PVT_kwDOCM-yes4A1-LG
-          STATUS_FIELD_ID: PVTSSF_lADOCM-yes4A1-LGzgrWwJc
-          STATUS_OPTION_ID: df73e18b
-          OWNER: ${{ github.repository_owner }}
-          REPO: ${{ github.event.repository.name }}
+          RWX_ACCESS_TOKEN: ${{ steps.doppler.outputs.RWX_DISPATCH_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          set -euo pipefail
-          QUERY=$(cat <<'EOF'
-          query($owner: String!, $repo: String!, $prNumber: Int!) {
-            repository(owner: $owner, name: $repo) {
-              pullRequest(number: $prNumber) {
-                closingIssuesReferences(first: 20) {
-                  nodes {
-                    number
-                    projectItems(first: 20) {
-                      nodes {
-                        id
-                        project {
-                          id
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-          EOF
-          )
-
-          ITEM_IDS=$(gh api graphql \
-            -f query="$QUERY" \
-            -F owner="$OWNER" \
-            -F repo="$REPO" \
-            -F prNumber="$PR_NUMBER" \
-            --jq ".data.repository.pullRequest.closingIssuesReferences.nodes[]? \
-              | .projectItems.nodes[]? \
-              | select(.project.id == \"$PROJECT_ID\") \
-              | .id")
-
-          if [[ -z "$ITEM_IDS" ]]; then
-            echo "No linked project items found for PR #${PR_NUMBER}."
-            exit 0
-          fi
-
-          while IFS= read -r item_id; do
-            if [[ -n "$item_id" ]]; then
-              gh project item-edit \
-                --project-id "$PROJECT_ID" \
-                --id "$item_id" \
-                --field-id "$STATUS_FIELD_ID" \
-                --single-select-option-id "$STATUS_OPTION_ID"
-            fi
-          done <<< "$ITEM_IDS"
-      - uses: ./.github/actions/notify-review-slack
-        with:
-          slack-token: ${{ steps.doppler.outputs.SLACK_BOT_TOKEN_GITHUB_NOTIFY }}
+          REVIEWER: ${{ github.event.requested_reviewer.login }}
+        run: >-
+          mise exec github:rwx-cloud/rwx@3.35.0 --
+          rwx dispatch duckdb-embedded-pr-review-requested --ref main
+          --param "pr-number=$PR_NUMBER" --param "reviewer=$REVIEWER"

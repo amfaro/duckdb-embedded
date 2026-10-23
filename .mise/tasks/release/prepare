@@ -47,8 +47,8 @@ This PR updates `VERSION` to the next release tag inferred from `DUCKDB_VERSION`
 
 After this PR merges:
 
-- `tag-release.yml` runs on the `main` push that includes `VERSION` and creates the matching git tag
-- `release.yml` runs on that tag push, publishes artifacts, and dispatches `duckdb-embedded-release` to `amfaro/calc`
+- `.rwx/prepare-release.yml` runs on the `main` push that includes `VERSION` and creates the matching git tag
+- `release.yml` builds macOS on that tag push and dispatches `.rwx/release.yml`, which publishes artifacts and dispatches `duckdb-embedded-release` to `amfaro/calc`
 EOF
 )
 

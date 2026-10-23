@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE description="Lint the GitHub Actions shims and the mise task scripts"
+
+set -euo pipefail
+
+# Explicit paths: RWX clones without .git, where actionlint finds no project.
+actionlint -color -config-file .github/actionlint.yml .github/workflows/*.yml
+shellcheck .mise/tasks/build-duckdb .mise/tasks/lint .mise/tasks/package-release-artifact \
+  .mise/tasks/prepare-runtime-image-context .mise/tasks/write-release-manifest .mise/tasks/release/*
