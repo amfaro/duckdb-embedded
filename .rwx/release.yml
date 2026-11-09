@@ -86,14 +86,14 @@ tasks:
           path: libduckdb-osx-arm64.zip
 
   - key: code
-    call: git/clone 2.3.1
+    call: git/clone 2.4.0
     with:
       repository: https://github.com/amfaro/duckdb-embedded.git
       ref: ${{ init.commit-sha }}
 
   - key: mise
     use: [github-cli, code]
-    call: gmatter/setup-mise 1.1.0
+    call: gmatter/setup-mise 1.1.1
     filter:
       - mise.toml
     with:
