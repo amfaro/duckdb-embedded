@@ -48,7 +48,7 @@ tasks:
       patterns: VERSION
 
   - key: code
-    call: git/clone 2.4.0
+    call: git/clone 2.4.1
     with:
       repository: https://github.com/amfaro/duckdb-embedded.git
       ref: ${{ init.commit-sha }}
@@ -58,7 +58,7 @@ tasks:
 
   - key: mise
     use: [github-cli, code]
-    call: gmatter/setup-mise 1.1.1
+    call: gmatter/setup-mise 1.1.2
     with:
       install: 'false'
 
