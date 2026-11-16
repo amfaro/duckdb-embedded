@@ -16,14 +16,14 @@ base:
 
 tasks:
   - key: code
-    call: git/clone 2.4.0
+    call: git/clone 2.4.1
     with:
       repository: https://github.com/amfaro/duckdb-embedded.git
       ref: ${{ init.commit-sha }}
 
   - key: mise
     use: code
-    call: gmatter/setup-mise 1.1.1
+    call: gmatter/setup-mise 1.1.2
     filter:
       - mise.toml
     with:
